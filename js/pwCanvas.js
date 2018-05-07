@@ -94,25 +94,23 @@ angular.module('pw.canvas-painter')
         function setDrawingStyleToContext(){
           ctx.fillStyle = options.backgroundColor;
           ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.globalCompositeOperation = "source-over";  
           ctxTmp.globalAlpha = options.opacity;
           ctxTmp.lineJoin = ctxTmp.lineCap = 'round';
-          ctxTmp.lineWidth = 10;
+          ctxTmp.lineWidth = options.lineWidth;
           ctxTmp.strokeStyle = options.color;
+          ctxTmp.globalCompositeOperation = "source-over";
         }
 
         function setEraserStyleToContext(){
-          ctxTmp.strokeStyle = options.color;
-          ctxTmp.globalCompositeOperation = "destination-out";  
-          ctxTmp.lineWidth = 10;
+          ctx.fillStyle = options.backgroundColor;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.globalCompositeOperation = "destination-out"; 
           ctxTmp.globalAlpha = options.opacity;
-          ctxTmp.strokeStyle = ("rgba(255,255,255,255)");
-        }
-
-        if (options.eraseMode) {
-          setEraserStyle();
-        }
-        else{
-          setDrawingStyle();
+          ctxTmp.lineJoin = ctxTmp.lineCap = 'round';
+          ctxTmp.lineWidth = options.lineWidth*2;
+          ctxTmp.globalCompositeOperation = "copy";  
+          ctxTmp.strokeStyle = ("rgba(0,0,0,1)");
         }
 
         //Watch options
@@ -140,7 +138,10 @@ angular.module('pw.canvas-painter')
 
         scope.$watch('options.eraseMode', function(newValue) {
           if (newValue) {
-            setEraserStyle();
+            setEraserStyleToContext();
+          }
+          else{
+            setDrawingStyleToContext();
           }
         });
 
