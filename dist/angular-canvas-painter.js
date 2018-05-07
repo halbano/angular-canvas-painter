@@ -1,7 +1,7 @@
 /*!
  * angular-canvas-painter - v0.6.0
  *
- * Copyright (c) 2017, Philipp Wambach
+ * Copyright (c) 2018, Philipp Wambach
  * Released under the MIT license.
  */
 'use strict';
@@ -63,6 +63,7 @@ angular.module('pw.canvas-painter')
         options.lineWidth = options.lineWidth || 1;
         options.undo = options.undo || false;
         options.imageSrc = options.imageSrc || false;
+        options.eraseMode = options.eraseMode || false;
 
         // background image
         if (options.imageSrc) {
@@ -115,20 +116,37 @@ angular.module('pw.canvas-painter')
           x: 0,
           y: 0
         };
-        var ppts = [];
+        var addedPoints = [];
+        var deletedPoints = [];
 
         //set canvas size
         canvas.width = canvasTmp.width = options.width;
         canvas.height = canvasTmp.height = options.height;
 
         //set context style
-        ctx.fillStyle = options.backgroundColor;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctxTmp.globalAlpha = options.opacity;
-        ctxTmp.lineJoin = ctxTmp.lineCap = 'round';
-        ctxTmp.lineWidth = 10;
-        ctxTmp.strokeStyle = options.color;
+        function setDrawingStyleToContext(){
+          ctx.fillStyle = options.backgroundColor;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctxTmp.globalAlpha = options.opacity;
+          ctxTmp.lineJoin = ctxTmp.lineCap = 'round';
+          ctxTmp.lineWidth = 10;
+          ctxTmp.strokeStyle = options.color;
+        }
 
+        function setEraserStyleToContext(){
+          ctxTmp.strokeStyle = options.color;
+          ctxTmp.globalCompositeOperation = "destination-out";  
+          ctxTmp.lineWidth = 10;
+          ctxTmp.globalAlpha = options.opacity;
+          ctxTmp.strokeStyle = ("rgba(255,255,255,255)");
+        }
+
+        if (options.eraseMode) {
+          setEraserStyle();
+        }
+        else{
+          setDrawingStyle();
+        }
 
         //Watch options
         scope.$watch('options.lineWidth', function(newValue) {
@@ -153,6 +171,12 @@ angular.module('pw.canvas-painter')
           }
         });
 
+        scope.$watch('options.eraseMode', function(newValue) {
+          if (newValue) {
+            setEraserStyle();
+          }
+        });
+
         var getOffset = function(elem) {
           var bbox = elem.getBoundingClientRect();
           return {
@@ -171,7 +195,6 @@ angular.module('pw.canvas-painter')
           }
         };
 
-
         var paint = function(e) {
           if (e) {
             e.preventDefault();
@@ -179,13 +202,20 @@ angular.module('pw.canvas-painter')
           }
 
           // Saving all the points in an array
-          ppts.push({
+          addedPoints.push({
             x: point.x,
             y: point.y
           });
 
-          if (ppts.length === 3) {
-            var b = ppts[0];
+          if (options.eraseMode){
+            deletedPoints.push({
+              x: point.x,
+              y: point.y
+            });
+          }
+
+          if (addedPoints.length === 3) {
+            var b = addedPoints[0];
             ctxTmp.beginPath();
             ctxTmp.arc(b.x, b.y, ctxTmp.lineWidth / 2, 0, Math.PI * 2, !0);
             ctxTmp.fill();
@@ -197,20 +227,20 @@ angular.module('pw.canvas-painter')
           ctxTmp.clearRect(0, 0, canvasTmp.width, canvasTmp.height);
 
           ctxTmp.beginPath();
-          ctxTmp.moveTo(ppts[0].x, ppts[0].y);
+          ctxTmp.moveTo(addedPoints[0].x, addedPoints[0].y);
 
-          for (var i = 1; i < ppts.length - 2; i++) {
-            var c = (ppts[i].x + ppts[i + 1].x) / 2;
-            var d = (ppts[i].y + ppts[i + 1].y) / 2;
-            ctxTmp.quadraticCurveTo(ppts[i].x, ppts[i].y, c, d);
+          for (var i = 1; i < addedPoints.length - 2; i++) {
+            var c = (addedPoints[i].x + addedPoints[i + 1].x) / 2;
+            var d = (addedPoints[i].y + addedPoints[i + 1].y) / 2;
+            ctxTmp.quadraticCurveTo(addedPoints[i].x, addedPoints[i].y, c, d);
           }
 
           // For the last 2 points
           ctxTmp.quadraticCurveTo(
-            ppts[i].x,
-            ppts[i].y,
-            ppts[i + 1].x,
-            ppts[i + 1].y
+            addedPoints[i].x,
+            addedPoints[i].y,
+            addedPoints[i + 1].x,
+            addedPoints[i + 1].y
           );
           ctxTmp.stroke();
         };
@@ -227,7 +257,7 @@ angular.module('pw.canvas-painter')
           canvasTmp.removeEventListener(PAINT_MOVE, paint, false);
           ctx.drawImage(canvasTmp, 0, 0);
           ctxTmp.clearRect(0, 0, canvasTmp.width, canvasTmp.height);
-          ppts = [];
+          addedPoints = [];
         };
 
         var startTmpImage = function(e) {
@@ -235,11 +265,11 @@ angular.module('pw.canvas-painter')
           canvasTmp.addEventListener(PAINT_MOVE, paint, false);
 
           setPointFromEvent(point, e);
-          ppts.push({
+          addedPoints.push({
             x: point.x,
             y: point.y
           });
-          ppts.push({
+          addedPoints.push({
             x: point.x,
             y: point.y
           });
