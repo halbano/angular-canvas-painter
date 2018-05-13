@@ -31,6 +31,7 @@ angular.module('pw.canvas-painter')
         options.undo = options.undo || false;
         options.imageSrc = options.imageSrc || false;
         options.eraseMode = options.eraseMode || false;
+        options.scale = options.scale || 1.0;
 
         // background image
         if (options.imageSrc) {
@@ -95,9 +96,10 @@ angular.module('pw.canvas-painter')
           ctx.fillStyle = options.backgroundColor;
           ctx.fillRect(0, 0, canvas.width, canvas.height);
           ctx.globalCompositeOperation = "source-over";  
+          ctx.globalAlpha = options.opacity;
           ctxTmp.globalAlpha = options.opacity;
           ctxTmp.lineJoin = ctxTmp.lineCap = 'round';
-          ctxTmp.lineWidth = options.lineWidth;
+          ctxTmp.lineWidth = options.lineWidth*3;
           ctxTmp.strokeStyle = options.color;
           ctxTmp.globalCompositeOperation = "source-over";
         }
@@ -106,11 +108,12 @@ angular.module('pw.canvas-painter')
           ctx.fillStyle = options.backgroundColor;
           ctx.fillRect(0, 0, canvas.width, canvas.height);
           ctx.globalCompositeOperation = "destination-out"; 
+          ctx.globalAlpha = 1;
           ctxTmp.globalAlpha = options.opacity;
           ctxTmp.lineJoin = ctxTmp.lineCap = 'round';
-          ctxTmp.lineWidth = options.lineWidth*2;
+          ctxTmp.lineWidth = options.lineWidth*3;
           ctxTmp.globalCompositeOperation = "copy";  
-          ctxTmp.strokeStyle = ("rgba(0,0,0,1)");
+          ctxTmp.strokeStyle = "rgba(110,110,110,1)";
         }
 
         //Watch options
@@ -155,13 +158,57 @@ angular.module('pw.canvas-painter')
 
         var setPointFromEvent = function(point, e) {
           if (isTouch) {
-            point.x = e.changedTouches[0].pageX - getOffset(e.target).left;
-            point.y = e.changedTouches[0].pageY - getOffset(e.target).top;
+            var touch = e.touches[0] || e.changedTouches[0];
+            point.x = touch.clientX - getOffset(e.target).left;
+            point.y = touch.clientY - getOffset(e.target).top;
           } else {
-            point.x = e.offsetX !== undefined ? e.offsetX : e.layerX;
-            point.y = e.offsetY !== undefined ? e.offsetY : e.layerY;
+            point.x = e.offsetX !== undefined ? e.offsetX*options.scale : e.layerX*options.scale;
+            point.y = e.offsetY !== undefined ? e.offsetY*options.scale : e.layerY*options.scale;
           }
         };
+
+        var erase = function(e){
+          if (e) {
+            e.preventDefault();
+            setPointFromEvent(point, e);
+          }
+
+          deletedPoints.push({
+            x: point.x,
+            y: point.y
+          });
+
+          if (deletedPoints.length === 3) {
+            var b = deletedPoints[0];
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, ctxTmp.lineWidth / 2, 0, Math.PI * 2, !0);
+            ctx.fill();
+            ctx.closePath();
+            return;
+          }
+
+          // Tmp canvas is always cleared up before drawing.
+          ctx.clearRect(0, 0, canvasTmp.width, canvasTmp.height);
+
+          ctx.beginPath();
+          ctx.moveTo(deletedPoints[0].x, deletedPoints[0].y);
+
+          for (var i = 1; i < deletedPoints.length - 2; i++) {
+            var c = (deletedPoints[i].x + deletedPoints[i + 1].x) / 2;
+            var d = (deletedPoints[i].y + deletedPoints[i + 1].y) / 2;
+            ctx.quadraticCurveTo(deletedPoints[i].x, deletedPoints[i].y, c, d);
+          }
+
+          // For the last 2 points
+          ctx.quadraticCurveTo(
+            deletedPoints[i].x,
+            deletedPoints[i].y,
+            deletedPoints[i + 1].x,
+            deletedPoints[i + 1].y
+          );
+          ctx.stroke();
+
+        }
 
         var paint = function(e) {
           if (e) {
@@ -174,13 +221,6 @@ angular.module('pw.canvas-painter')
             x: point.x,
             y: point.y
           });
-
-          if (options.eraseMode){
-            deletedPoints.push({
-              x: point.x,
-              y: point.y
-            });
-          }
 
           if (addedPoints.length === 3) {
             var b = addedPoints[0];
